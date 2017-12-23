@@ -37,11 +37,13 @@ def twopoint_correlation(data):
     shape = data.get_shape().as_list()
     # print (data.shape)
     size = shape[0] * shape[1] * shape[0] * shape[1]
-    res = kron(data[:,:,0], data[:,:,0])
+    res = kron(data, data)
+    # res = kron(data[:,:,0], data[:,:,0])
     s = tf.reduce_sum(res)
+    return s
     # print(s)
     # s.reshape([1])
-    return tf.reshape(s,[1])
+    # return tf.reshape(s,[1])
 
 def minmax_scaling(data):
     ma = tf.reduce_max(data)
@@ -53,24 +55,17 @@ def twopoint_correlation_layer(data, kernel_size=(3, 3)):
 
     data = minmax_scaling(data)
 
-    # print(data.shape)
     h = data.shape[0]
     w = data.shape[1]
-    # s_m = []
+    th = h - kernel_size[0] + 1
+    tw = w - kernel_size[0] + 1
+    s_m = []
     for i in range(h - kernel_size[0] + 1):
-        s_row = []
         for j in range(w - kernel_size[1] + 1):
             s = twopoint_correlation(data[i:i + kernel_size[0], j:j + kernel_size[1]])
-            # print(s)
-            s_row = tf.concat([s_row, s], 0)
+            s_m.append(s)
 
-        if i == 0:
-            s_m = tf.expand_dims(s_row, 0)
-        else:
-            s_row = tf.expand_dims(s_row, 0)
-            s_m = tf.concat([s_m, s_row], 0)
-            # print(s_row.eval())
-            # print(s_m.eval())
+    s_m = tf.reshape(tf.stack(s_m), [th, tw])
     return s_m
 
 
@@ -83,19 +78,13 @@ def get_l2_norm_loss(diffs):
 
 
 if __name__ == '__main__':
-    # from keras.datasets import mnist
-    #
-    # (x_train, y_train), (x_test, y_test) = mnist.load_data()
-    # x_train = x_train.astype('float32')
-    # img_rows, img_cols = 28, 28
-    # x_train = x_train.reshape(x_train.shape[0], img_rows, img_cols, 1)
-    # x_train /= 255
 
     EPOCHS = 300
 
     height = 30
     width = 30
-    image_shape = (height, width, 1)
+    image_shape = (height, width)
+    # , 1)
 
     noise_init = tf.truncated_normal(image_shape, mean=.5, stddev=.1)
 
@@ -108,14 +97,17 @@ if __name__ == '__main__':
     img = skimage.io.imread("tex1.png", as_grey=True) / 255.0
     # img = np.array([[0.4,0.6,0.1,0.2],[0.1,0.5,0.5,0],[1,1,0.4,0.3],[0.2,0.2,0.5,0.8]])
     timg = tf.convert_to_tensor(img, dtype=tf.float32)
-    timg = tf.expand_dims(timg, 2)
-    # print(timg.shape)
 
+    # timg = tf.expand_dims(timg, 2)
+
+    # print(timg.shape)
 
     gen_sm = twopoint_correlation_layer(noise)
     sm = twopoint_correlation_layer(timg[:height, :width])
 
-    total_loss = get_l2_norm_loss(gen_sm - sm)
+    tpc_loss = get_l2_norm_loss(gen_sm - sm)
+
+    total_loss = tpc_loss
 
     optimizer = tf.train.AdamOptimizer(0.02).minimize(total_loss, var_list=noise)
 
@@ -128,6 +120,7 @@ if __name__ == '__main__':
         for i in range(1, EPOCHS):
             _, loss, xxx = sess.run([optimizer, total_loss, noise])
             # print(xxx.reshape(height, width))
-            print("Epoch %d | Loss: %.03f\n" % (i, loss))
-            # np.reshape()
-            imsave('res/result-%d.png' % i, xxx.reshape(height, width))
+            if i % 10 == 0:
+                print("Epoch %d | Loss: %.03f\n" % (i, loss))
+                # np.reshape()
+                imsave('res/result-%d.png' % i, xxx.reshape(height, width))
