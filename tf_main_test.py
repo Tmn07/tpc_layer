@@ -87,21 +87,22 @@ def twopoint_correlation(data):
     res = kron(data, data)
     # res = kron(data[:,:,0], data[:,:,0])
     s = tf.reduce_sum(res)
-    return s
-    # print(s)
-    # s.reshape([1])
-    # return tf.reshape(s,[1])
+    return s 
+    # / size
+
 
 def minmax_scaling(data):
     ma = tf.reduce_max(data)
     mi = tf.reduce_min(data)
+    if tf.equal(ma,mi) is not None:
+        return data
     return (data - mi) / (ma-mi)
 
 
 def twopoint_correlation_layer(data, kernel_size=(3, 3)):
 
     data = minmax_scaling(data)
-
+    print(data)
     h = data.shape[0]
     w = data.shape[1]
     th = h - kernel_size[0] + 1
@@ -126,10 +127,10 @@ def l2_loss(diffs):
 
 if __name__ == '__main__':
 
-    EPOCHS = 30
+    EPOCHS = 200
     TEXTURE_LAYERS = ['conv1_1', 'conv2_1', 'conv3_1', 'conv4_1']
-    height = 10
-    width = 10
+    height = 12
+    width = 12
     image_shape = (height, width)
     Alpha = 1
     Beta = 1
@@ -138,17 +139,17 @@ if __name__ == '__main__':
 
 
     
-    noise_init = tf.truncated_normal(image_shape, mean=.5, stddev=.1)
+    # noise_init = tf.truncated_normal(image_shape, mean=.5, stddev=.1)
 
-    # img = skimage.io.imread("res/result-0.png", as_grey=True) / 255.0
-    # noise_init = tf.convert_to_tensor(img, dtype=tf.float32)
+    img = skimage.io.imread("res/0result.png", as_grey=True) / 255.0
+    noise_init = tf.convert_to_tensor(img, dtype=tf.float32)
     # noise_init = tf.expand_dims(noise_init, 2)
 
     noise = tf.Variable(noise_init, dtype=tf.float32)
 
-    img = skimage.io.imread("tex1.png", as_grey=True) / 255.0
+    ref_img = skimage.io.imread("tex1-b.png", as_grey=True) / 255.0
     # img = np.array([[0.4,0.6,0.1,0.2],[0.1,0.5,0.5,0],[1,1,0.4,0.3],[0.2,0.2,0.5,0.8]])
-    timg = tf.convert_to_tensor(img, dtype=tf.float32)
+    timg = tf.convert_to_tensor(ref_img, dtype=tf.float32)
     # timg = tf.expand_dims(timg, 2)
     # print(timg.shape)
 
@@ -177,18 +178,47 @@ if __name__ == '__main__':
 
 
     total_loss = Alpha * tpc_loss + Beta * style_loss
+    # total_loss = Alpha * tpc_loss 
 
+    # optimizer = tf.train.GradientDescentOptimizer(0.02).minimize(total_loss, var_list=noise)
+    
+    # optimizer = tf.train.GradientDescentOptimizer(0.2)
     optimizer = tf.train.AdamOptimizer(0.02).minimize(total_loss, var_list=noise)
+    # grads_and_vars = optimizer.compute_gradients(total_loss, noise)
+    # print(grads_and_vars)
+    # grad_noise = tf.truncated_normal(image_shape, mean=100000000, stddev=1000)
+
 
     with tf.Session() as sess:
 
         sess.run(tf.global_variables_initializer())
+        # print(sess.run(grads_and_vars[0][0]))
+        # print(sess.run(new_grads_and_vars[0][0]))
+        # print(optimizer.get_slot(noise, "m"))
         
         # print(sess.run(noise))
+        # print(sess.run(gen_sm))
+        # print(sess.run(timg[:height, :width]))
+        # print(sess.run(sm))
+
+        # grads_and_vars_ = grads_and_vars[0]
+        # grads = grads_and_vars_[0]
+        # vars_ = grads_and_vars_[1]
+        # gradss = grads.eval()
+
+        # print(gradss)
 
         for i in range(1, EPOCHS):
+            # new_grads_and_vars = [(tf.add(gv[0], grad_noise), gv[1]) for gv in grads_and_vars]
+            # opt = optimizer.apply_gradients(new_grads_and_vars)
+
+            
+
             _, ls1, ls2, xxx = sess.run([optimizer, tpc_loss, style_loss, noise])
-            # print(xxx.reshape(height, width))
-            print("Epoch %d | tpc_loss: %.03f\n | style_loss: %.03f\n" % (i, ls1, ls2))
+            # _, ls1, xxx = sess.run([opt, tpc_loss, noise])
+            
+            print("Epoch %d | tpc_loss: %.03f | style_loss: %.03f\n" % (i, ls1, ls2))
+            # print("Epoch %d | tpc_loss: %.03f\n" % (i, ls1))
+
             if i % 10 == 0:
-                imsave('res/result-%d.png' % i, xxx.reshape(height, width))
+                imsave('res/0result-%d.png' % i, xxx.reshape(height, width))
